@@ -1,0 +1,343 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdio.h>
+
+
+#define IR_Links (1<<PB3)
+#define IR_Rechts (1<<PB4)
+
+#define Buzzer (1<<PD2)
+
+/////b
+#define trigPin PB1 //pin 9
+#define echoPin PB0 //pin 8
+#define ledPin PC5 //pin A5
+
+volatile long duration;
+volatile int distance;
+/////e
+
+
+
+//motor pwm a en b
+#define PWM_A (1<<PD5) // pin 5
+#define PWM_B (1<<PD6) // pin 6
+
+//motor driver pins
+#define AI1 (1<<PD3) //pin 3
+#define AI2 (1<<PD4) //pin 4
+#define BI1 (1<<PB2) //pin 10
+#define BI2 (1<<PD7) //pin 7
+
+#define OUT5 (1<<PC4)   //pin A4    OUT5 = rechter IR
+#define OUT4 (1<<PC3)   //pin A3
+#define OUT3 (1<<PC2)   //pin A2    OUT3 = middelste IR
+#define OUT2 (1<<PC1)   //pin A1
+#define OUT1 (1<<PC0)   //pin A0    OUT1 = linker IR
+
+//switch case richtingen
+#define     LL  1
+#define     L   2
+#define     M   3
+#define     R   4
+#define     RR  5
+#define     HALT 6
+
+//bij gebruik van volle 9v batterij: FW A50B50, BW A30B40 ok
+double dutyCycleA = 50; // percentage 0/100
+double dutyCycleB = 50;
+
+//factor 1 voor geen compensatie
+double speedFactor = 1;       //verandert snelheid beide motoren met een factor, bij volle 9v batterij 0.4 ok
+double motorACompensatie = 1;   //snelheidsfactor motor A
+double motorBCompensatie = 1;   //snelheidsfactor motor B
+
+//flags om te voorkomen dat de AGV vastloopt op een boom
+int IR_IGNORE_FLAG_LINKS = 0;
+int IR_IGNORE_FLAG_RECHTS = 0;
+
+int richting;   //richtingvariabele voor de switch-case
+
+////b
+void setup()
+{
+    DDRD |= Buzzer;
+    
+    DDRB &= ~(IR_Links);
+    DDRB &= ~(IR_Rechts);
+    
+    // Set the trigger pin as output and echo pin as input
+    DDRB |= (1 << trigPin);
+    DDRB &= ~(1 << echoPin);
+
+    // Configure Timer1
+    TCCR1B = (1 << WGM12) | (1 << CS12) | (1 << CS10); // CTC mode, prescaler 1024
+    OCR1A = 156; // Set compare value for 50ms interrupt
+    TIMSK1 = (1 << OCIE1A); // Enable compare match interrupt
+
+    // Initialize serial communication
+    UBRR0 = 103;
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+/////e
+    
+    
+    
+    //motor A en B output
+    DDRD |= PWM_A;
+    DDRD |= PWM_B;
+
+    //motordriver pins output
+    DDRD |= AI1 | AI2 | BI2;
+    DDRB |= BI1;
+
+    //IR lijnvolger pins
+    DDRC &= ~(OUT1);
+    DDRC &= ~(OUT2);
+    DDRC &= ~(OUT3);
+    DDRC &= ~(OUT4);
+    DDRC &= ~(OUT5);
+
+    //zet motors op FW
+    A_SET_FW();
+    B_SET_FW();
+
+    //prescaling
+    TCCR0B = (1 << CS00) | (1 << CS02);
+
+    //initialiseer PWM motor A en B
+    INIT_PWM_A();
+    INIT_PWM_B();
+
+    sei();
+}
+
+
+
+int main(void)
+{
+    setup();
+  
+    while(1){
+        //sturen
+        if(!(PINC & OUT3)){
+            richting = M;
+        }
+        if(!(PINC & OUT2)){
+            richting = R;
+        }
+        if(!(PINC & OUT4)){
+            richting = L;
+        }
+        if(!(PINC & OUT1)){
+           richting = RR;
+        }
+        if(!(PINC & OUT5)){
+            richting = LL;
+        }
+
+        ultrasoon_routine();
+
+        //IR boomdetectie links
+        if((PINB & IR_Links) && (IR_IGNORE_FLAG_LINKS == 0)){
+            IR_IGNORE_FLAG_LINKS = 1;
+            BOOM_GEDETECTEERD();
+        }
+        
+        if(!(PINB & IR_Links) && (IR_IGNORE_FLAG_LINKS == 1)){
+            IR_IGNORE_FLAG_LINKS = 0;
+        }
+
+        //IR boomdetectie rechts
+        if((PINB & IR_Rechts) && (IR_IGNORE_FLAG_RECHTS == 0)){
+            IR_IGNORE_FLAG_RECHTS = 1;
+            BOOM_GEDETECTEERD();
+        }
+        
+        if(!(PINB & IR_Rechts) && (IR_IGNORE_FLAG_RECHTS == 1)){
+            IR_IGNORE_FLAG_RECHTS = 0;
+        }
+        
+        switch(richting){
+            case LL:
+                dutyCycleA = 10;
+                dutyCycleB = 50;
+                break;
+            case L:
+                dutyCycleA = 30;
+                dutyCycleB = 50;
+                break;
+            case M:
+                dutyCycleA = 50;
+                dutyCycleB = 50;
+                break;
+            case R:
+                dutyCycleA = 50;
+                dutyCycleB = 30;
+                break;
+            case RR:
+                dutyCycleA = 50;
+                dutyCycleB = 10;
+                break;
+            case HALT:
+                dutyCycleB = 0;
+                dutyCycleA = 0;
+
+        }
+    }
+}
+
+void BOOM_GEDETECTEERD(){
+  STOP_PWM_A();
+  STOP_PWM_B();
+  int aantal_biepies = 0;
+  int biep_tijd = 0;
+  while(aantal_biepies < 3){
+    while(biep_tijd < 100){
+      PORTD |= Buzzer;
+      _delay_ms(10);
+      PORTD &= ~Buzzer;
+      _delay_ms(10);
+      biep_tijd += 20;
+    }
+    biep_tijd = 0;
+    _delay_ms(100);
+    aantal_biepies += 1;
+  }
+    
+  _delay_ms(5000);
+  INIT_PWM_A();
+  INIT_PWM_B();
+          
+}
+
+void INIT_PWM_A(){
+  TCCR0A |= (1 << COM0A1) | (1 << WGM00) | (1 << WGM01);
+  TIMSK0 = (1 << TOIE0);
+
+  OCR0A = (dutyCycleA/100.0)*255.0;
+}
+
+void INIT_PWM_B(){
+    TCCR0A |= (1 << COM0B1) | (1 << WGM00) | (1 << WGM01);
+  TIMSK0 = (1 << TOIE0);
+
+  OCR0B = (dutyCycleB/100.0)*255.0;
+}
+
+void STOP_PWM_A(){
+    TCCR0A &= ~(1 << COM0A0);
+    TCCR0A &= ~(1 << COM0A1);
+}
+
+void STOP_PWM_B(){
+    TCCR0A &= ~(1 << COM0B0);
+    TCCR0A &= ~(1 << COM0B1);
+}
+
+void A_SET_FW(){
+    PORTD |= AI1;
+    PORTD &= ~AI2;
+}
+
+void B_SET_FW(){
+    PORTB |= BI1;
+    PORTD &= ~BI2;
+}
+
+void A_SET_BW(){
+    PORTD &= ~AI1;
+    PORTD |= AI2;
+}
+
+void B_SET_BW(){
+    PORTB &= ~BI1;
+    PORTD |= BI2;
+}
+
+ISR(TIMER0_OVF_vect)
+{
+  OCR0A = (dutyCycleA/100.0)*255*speedFactor*motorACompensatie;
+  OCR0B = (dutyCycleB/100.0)*255*speedFactor*motorBCompensatie;
+}
+
+
+
+
+
+/////b
+
+void pulseTrigger()
+{
+    PORTB |= (1 << trigPin);
+    _delay_us(10);
+    PORTB &= ~(1 << trigPin);
+}
+
+void measureDistance()
+{
+    duration = 0;
+
+    // Wait for the echo pin to go high
+    while (!(PINB & (1 << echoPin)))
+    {
+    }
+
+    // Measure the duration of the echo pulse
+    while (PINB & (1 << echoPin))
+    {
+        duration++;
+        _delay_us(1);
+    }
+}
+
+void calculateDistance()
+{
+    // Calculate the distance based on the speed of sound
+    distance = duration * 0.0343;
+}
+
+
+void printDistance()
+{
+    // Send the distance to the serial monitor
+    char buffer[16];
+    sprintf(buffer, "Distance: %d cm\n", distance);
+    for (int i = 0; buffer[i] != '\0'; ++i)
+    {
+        while (!(UCSR0A & (1 << UDRE0)))
+        {
+        }
+        UDR0 = buffer[i];
+    }
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+    pulseTrigger();
+}
+
+
+void ultrasoon_routine(){
+  measureDistance();
+  calculateDistance();
+  printDistance();
+  ultrasoon_halt();
+  
+  _delay_ms(1);
+}
+
+
+void ultrasoon_halt()
+{
+    if (distance < 10)
+    {
+        richting = HALT;
+    }
+    if ((distance > 10) & (richting == HALT)){
+      richting = M;
+      }
+}
+
+/////e
