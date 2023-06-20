@@ -60,3 +60,55 @@ int IR_IGNORE_FLAG_RECHTS = 0;
 int richting;   //richtingvariabele voor de switch-case
 
 ////b
+void setup()
+{
+    DDRD |= Buzzer;
+    
+    DDRB &= ~(IR_Links);
+    DDRB &= ~(IR_Rechts);
+    
+    // Set the trigger pin as output and echo pin as input
+    DDRB |= (1 << trigPin);
+    DDRB &= ~(1 << echoPin);
+
+    // Configure Timer1
+    TCCR1B = (1 << WGM12) | (1 << CS12) | (1 << CS10); // CTC mode, prescaler 1024
+    OCR1A = 156; // Set compare value for 50ms interrupt
+    TIMSK1 = (1 << OCIE1A); // Enable compare match interrupt
+
+    // Initialize serial communication
+    UBRR0 = 103;
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+/////e
+    
+    
+    
+    //motor A en B output
+    DDRD |= PWM_A;
+    DDRD |= PWM_B;
+
+    //motordriver pins output
+    DDRD |= AI1 | AI2 | BI2;
+    DDRB |= BI1;
+
+    //IR lijnvolger pins
+    DDRC &= ~(OUT1);
+    DDRC &= ~(OUT2);
+    DDRC &= ~(OUT3);
+    DDRC &= ~(OUT4);
+    DDRC &= ~(OUT5);
+
+    //zet motors op FW
+    A_SET_FW();
+    B_SET_FW();
+
+    //prescaling
+    TCCR0B = (1 << CS00) | (1 << CS02);
+
+    //initialiseer PWM motor A en B
+    INIT_PWM_A();
+    INIT_PWM_B();
+
+    sei();
+}
