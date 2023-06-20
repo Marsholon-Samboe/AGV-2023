@@ -112,3 +112,76 @@ void setup()
 
     sei();
 }
+
+int main(void)
+{
+    setup();
+  
+    while(1){
+        //sturen
+        if(!(PINC & OUT3)){
+            richting = M;
+        }
+        if(!(PINC & OUT2)){
+            richting = R;
+        }
+        if(!(PINC & OUT4)){
+            richting = L;
+        }
+        if(!(PINC & OUT1)){
+           richting = RR;
+        }
+        if(!(PINC & OUT5)){
+            richting = LL;
+        }
+
+        ultrasoon_routine();
+
+        //IR boomdetectie links
+        if((PINB & IR_Links) && (IR_IGNORE_FLAG_LINKS == 0)){
+            IR_IGNORE_FLAG_LINKS = 1;
+            BOOM_GEDETECTEERD();
+        }
+        
+        if(!(PINB & IR_Links) && (IR_IGNORE_FLAG_LINKS == 1)){
+            IR_IGNORE_FLAG_LINKS = 0;
+        }
+
+        //IR boomdetectie rechts
+        if((PINB & IR_Rechts) && (IR_IGNORE_FLAG_RECHTS == 0)){
+            IR_IGNORE_FLAG_RECHTS = 1;
+            BOOM_GEDETECTEERD();
+        }
+        
+        if(!(PINB & IR_Rechts) && (IR_IGNORE_FLAG_RECHTS == 1)){
+            IR_IGNORE_FLAG_RECHTS = 0;
+        }
+        
+        switch(richting){
+            case LL:
+                dutyCycleA = 10;
+                dutyCycleB = 50;
+                break;
+            case L:
+                dutyCycleA = 30;
+                dutyCycleB = 50;
+                break;
+            case M:
+                dutyCycleA = 50;
+                dutyCycleB = 50;
+                break;
+            case R:
+                dutyCycleA = 50;
+                dutyCycleB = 30;
+                break;
+            case RR:
+                dutyCycleA = 50;
+                dutyCycleB = 10;
+                break;
+            case HALT:
+                dutyCycleB = 0;
+                dutyCycleA = 0;
+
+        }
+    }
+}
