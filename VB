@@ -185,3 +185,27 @@ int main(void)
         }
     }
 }
+
+void BOOM_GEDETECTEERD(){
+  STOP_PWM_A();
+  STOP_PWM_B();
+  int aantal_biepies = 0;
+  int biep_tijd = 0;
+  while(aantal_biepies < 3){
+    while(biep_tijd < 100){
+      PORTD |= Buzzer;
+      _delay_ms(10);
+      PORTD &= ~Buzzer;
+      _delay_ms(10);
+      biep_tijd += 20;
+    }
+    biep_tijd = 0;
+    _delay_ms(100);
+    aantal_biepies += 1;
+  }
+    
+  _delay_ms(5000);
+  INIT_PWM_A();
+  INIT_PWM_B();
+          
+}
