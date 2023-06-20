@@ -232,3 +232,111 @@ void STOP_PWM_B(){
     TCCR0A &= ~(1 << COM0B0);
     TCCR0A &= ~(1 << COM0B1);
 }
+
+
+
+void A_SET_FW(){
+    PORTD |= AI1;
+    PORTD &= ~AI2;
+}
+
+void B_SET_FW(){
+    PORTB |= BI1;
+    PORTD &= ~BI2;
+}
+
+void A_SET_BW(){
+    PORTD &= ~AI1;
+    PORTD |= AI2;
+}
+
+void B_SET_BW(){
+    PORTB &= ~BI1;
+    PORTD |= BI2;
+}
+
+ISR(TIMER0_OVF_vect)
+{
+  OCR0A = (dutyCycleA/100.0)*255*speedFactor*motorACompensatie;
+  OCR0B = (dutyCycleB/100.0)*255*speedFactor*motorBCompensatie;
+}
+
+
+
+
+
+/////b
+
+void pulseTrigger()
+{
+    PORTB |= (1 << trigPin);
+    _delay_us(10);
+    PORTB &= ~(1 << trigPin);
+}
+
+void measureDistance()
+{
+    duration = 0;
+
+    // Wait for the echo pin to go high
+    while (!(PINB & (1 << echoPin)))
+    {
+    }
+
+    // Measure the duration of the echo pulse
+    while (PINB & (1 << echoPin))
+    {
+        duration++;
+        _delay_us(1);
+    }
+}
+
+void calculateDistance()
+{
+    // Calculate the distance based on the speed of sound
+    distance = duration * 0.0343;
+}
+
+
+void printDistance()
+{
+    // Send the distance to the serial monitor
+    char buffer[16];
+    sprintf(buffer, "Distance: %d cm\n", distance);
+    for (int i = 0; buffer[i] != '\0'; ++i)
+    {
+        while (!(UCSR0A & (1 << UDRE0)))
+        {
+        }
+        UDR0 = buffer[i];
+    }
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+    pulseTrigger();
+}
+
+
+void ultrasoon_routine(){
+  measureDistance();
+  calculateDistance();
+  printDistance();
+  ultrasoon_halt();
+  
+  _delay_ms(1);
+}
+
+
+void ultrasoon_halt()
+{
+    if (distance < 10)
+    {
+        richting = HALT;
+    }
+    if ((distance > 10) & (richting == HALT)){
+      richting = M;
+      }
+}
+
+/////e
