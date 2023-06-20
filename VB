@@ -1,0 +1,62 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdio.h>
+
+
+#define IR_Links (1<<PB3)
+#define IR_Rechts (1<<PB4)
+
+#define Buzzer (1<<PD2)
+
+/////b
+#define trigPin PB1 //pin 9
+#define echoPin PB0 //pin 8
+#define ledPin PC5 //pin A5
+
+volatile long duration;
+volatile int distance;
+/////e
+
+
+
+//motor pwm a en b
+#define PWM_A (1<<PD5) // pin 5
+#define PWM_B (1<<PD6) // pin 6
+
+//motor driver pins
+#define AI1 (1<<PD3) //pin 3
+#define AI2 (1<<PD4) //pin 4
+#define BI1 (1<<PB2) //pin 10
+#define BI2 (1<<PD7) //pin 7
+
+#define OUT5 (1<<PC4)   //pin A4    OUT5 = rechter IR
+#define OUT4 (1<<PC3)   //pin A3
+#define OUT3 (1<<PC2)   //pin A2    OUT3 = middelste IR
+#define OUT2 (1<<PC1)   //pin A1
+#define OUT1 (1<<PC0)   //pin A0    OUT1 = linker IR
+
+//switch case richtingen
+#define     LL  1
+#define     L   2
+#define     M   3
+#define     R   4
+#define     RR  5
+#define     HALT 6
+
+//bij gebruik van volle 9v batterij: FW A50B50, BW A30B40 ok
+double dutyCycleA = 50; // percentage 0/100
+double dutyCycleB = 50;
+
+//factor 1 voor geen compensatie
+double speedFactor = 1;       //verandert snelheid beide motoren met een factor, bij volle 9v batterij 0.4 ok
+double motorACompensatie = 1;   //snelheidsfactor motor A
+double motorBCompensatie = 1;   //snelheidsfactor motor B
+
+//flags om te voorkomen dat de AGV vastloopt op een boom
+int IR_IGNORE_FLAG_LINKS = 0;
+int IR_IGNORE_FLAG_RECHTS = 0;
+
+int richting;   //richtingvariabele voor de switch-case
+
+////b
