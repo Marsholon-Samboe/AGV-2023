@@ -209,3 +209,26 @@ void BOOM_GEDETECTEERD(){
   INIT_PWM_B();
           
 }
+void INIT_PWM_A(){
+  TCCR0A |= (1 << COM0A1) | (1 << WGM00) | (1 << WGM01);
+  TIMSK0 = (1 << TOIE0);
+
+  OCR0A = (dutyCycleA/100.0)*255.0;
+}
+
+void INIT_PWM_B(){
+    TCCR0A |= (1 << COM0B1) | (1 << WGM00) | (1 << WGM01);
+  TIMSK0 = (1 << TOIE0);
+
+  OCR0B = (dutyCycleB/100.0)*255.0;
+}
+
+void STOP_PWM_A(){
+    TCCR0A &= ~(1 << COM0A0);
+    TCCR0A &= ~(1 << COM0A1);
+}
+
+void STOP_PWM_B(){
+    TCCR0A &= ~(1 << COM0B0);
+    TCCR0A &= ~(1 << COM0B1);
+}
