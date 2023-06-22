@@ -108,7 +108,7 @@ void setup()
 
     //initialiseer PWM motor A en B
     INIT_PWM_A();
-    INIT_PWM_B();
+    INIT_PWM_B(); //Bram
 
     sei();
 }
