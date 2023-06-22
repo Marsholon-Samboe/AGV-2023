@@ -3,7 +3,7 @@
 #include <util/delay.h>
 #include <stdio.h>
 
-// Daan
+// nee geen daan
 
 //Bram
 #define IR_Links (1<<PB3)
