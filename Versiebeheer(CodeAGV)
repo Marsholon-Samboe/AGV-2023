@@ -10,7 +10,7 @@
 #define IR_Rechts (1<<PB4)
 
 #define Buzzer (1<<PD2)
-// help ik ben janno
+// help ik ben janno, hoi janno, ik ben thomas
 /////b
 #define trigPin PB1 //pin 9
 #define echoPin PB0 //pin 8
