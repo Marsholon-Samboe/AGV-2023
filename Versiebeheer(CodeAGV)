@@ -5,7 +5,7 @@
 
 // Daan
 
-//Marsholon
+//Bram
 #define IR_Links (1<<PB3)
 #define IR_Rechts (1<<PB4)
 
